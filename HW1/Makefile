@@ -16,4 +16,3 @@ $(TARGET): $(SRC)
 # Clean target: removes the executable
 clean:
 	rm -f $(TARGET)
-	rm target.txt

@@ -5,8 +5,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
-
-#define N 1
+#include <stdlib.h>
 
 typedef struct {
     char* buf;
@@ -22,6 +21,7 @@ int open_source(char* source){
         printf("Error opening source file: %s\n", strerror(errno));
         return -1;
     }
+    printf("Opened source: %d\n", fd);
     return fd;
 }
 
@@ -35,33 +35,28 @@ int open_target(char* target){
         close(fd);
         return -1;
     }
+    close(fd);
     /* create the target for writing */
     fd = open(target, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd < 0){
         printf("Error creating target file: %s\n", strerror(errno));
         return -1;
     }
+    printf("Opened target: %d\n", fd);
     return fd;
 }
 
-chars read_n_from_source(int fd){
-    char buf[N];
-    ssize_t len = read(fd, buf, N);
-    if (len < 0){
+void read_n_from_source(int fd, chars* curr, int n){
+    curr->len = read(fd, curr->buf, n);
+    if (curr->len < 0){
         printf("Error reading source file: %s\n", strerror(errno));
-        return (chars){NULL, len};
+        return;
     }
-    return (chars){buf, len};
-}
-
-int remaining_data(int fd){
-    char c[1];
-    ssize_t len;
-    len = read(fd, c, 1);
-    return len;
+    return;
 }
 
 void close_files(int fd1, int fd2){
+    printf("Closing\n");
     close(fd1);
     close(fd2);
 }
@@ -69,18 +64,37 @@ void close_files(int fd1, int fd2){
 int main(int argc, char* argv[]){
     int source_fd = 0;
     int target_fd = 0;
-    chars curr;
+    int n;
+    chars curr = {NULL, 1};
     ssize_t written;
-    if (argc != 3){
+    if (argc != 4){
         printf("Incorrect number of arguments!\n");
-        printf("Usage: copy SOURCE TARGET");
+        printf("Usage: copy SOURCE TARGET\n");
+        return -1;
     }
     source_fd = open_source(argv[1]);
     target_fd = open_target(argv[2]);
-    return 0;
+    if (target_fd < 0){
+        printf("Closing source\n");
+        close(source_fd);
+        return -1;
+    }
+    /* allocate n bytes */
+    sscanf(argv[3], "%d", &n);
+    if (n < 0){
+        printf("Problem parsing 'n'\n");
+        close_files(source_fd, target_fd);
+        return -1;
+    }
+    curr.buf = (char*) malloc(n);
+    if (curr.buf == NULL){
+        printf("Error allocating memory!\n");
+        close_files(source_fd, target_fd);
+        return -1;
+    }
     /* from this point the 2 fds are open */
-    while(remaining_data(source_fd)){
-        curr = read_n_from_source(source_fd);
+    while(curr.len > 0){
+        read_n_from_source(source_fd, &curr, n);
         /* handle error while reading */
         if (curr.len < 0){
             close_files(source_fd, target_fd);
@@ -94,5 +108,6 @@ int main(int argc, char* argv[]){
             return -1;
         }
     }
+    close_files(source_fd, target_fd);
     return 0;
 }
